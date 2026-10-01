@@ -604,42 +604,53 @@ function parseInfo(text) {
 }
 
 /* ============ FOTO / AUDIO ============ */
+const CLOUDINARY_CLOUD_NAME = 'c8i3qkht';
+const CLOUDINARY_UPLOAD_PRESET = 'rattazzi';
+
 function attivaInputFoto() { document.getElementById('file-input').click(); }
 
-function handleFileUpload(event) {
+async function handleFileUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const cat = DATA.categorie.find(c => c.id === state.categoriaId);
-    const art = cat.articoli.find(a => a.id === state.articoloId);
-    art.foto.push({ url: e.target.result, label: 'La mia foto' });
-    salvaDati(); render(); toast('📸 Foto aggiunta!');
-  };
-  reader.readAsDataURL(file);
-  event.target.value = '';
-}
 
-function eliminaFoto(art, index) {
-  art.foto.splice(index, 1);
-  salvaDati(); render(); toast('🗑️ Foto eliminata');
-}
+  toast('⏳ Caricamento foto in corso...');
 
-let audioPlaying = false;
-function toggleAudio() {
-  const cat = DATA.categorie.find(c => c.id === state.categoriaId);
-  const art = cat.articoli.find(a => a.id === state.articoloId);
-  if (!art.audioDurata || art.audioDurata === '0:00') { toast('🎙️ Nessun audio. Tieni premuto per opzioni.'); return; }
-  audioPlaying = !audioPlaying;
-  const btn = document.getElementById('play-btn');
-  if (btn) btn.textContent = audioPlaying ? '⏸️' : '▶️';
-  const fill = document.querySelector('.audio-player .fill');
-  if (fill) fill.style.width = audioPlaying ? '35%' : '0%';
-}
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-function eliminaAudio(art) {
-  art.audioDurata = '0:00';
-  salvaDati(); render(); toast('🗑️ Audio eliminato');
+  try {
+    // Invia la foto a Cloudinary
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    // Se Cloudinary ci restituisce il link della foto
+    if (data.secure_url) {
+      const cat = DATA.categorie.find(c => c.id === state.categoriaId);
+      const art = cat.articoli.find(a => a.id === state.articoloId);
+      
+      // Salviamo il LINK della foto, non la foto intera!
+      art.foto.push({ 
+        url: data.secure_url, 
+        label: 'La mia foto' 
+      });
+      
+      salvaDati(); // Salva in localStorage
+      render(); // Aggiorna l'interfaccia
+      toast('📸 Foto caricata!');
+    } else {
+      throw new Error(data.error?.message || 'Errore sconosciuto');
+    }
+  } catch (error) {
+    console.error(error);
+    toast('❌ Errore: ' + error.message);
+  }
+  
+  event.target.value = ''; // Pulisce l'input
 }
 
 /* ============ EXPORT ============ */
